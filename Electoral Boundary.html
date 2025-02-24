@@ -19,42 +19,69 @@
         const map = new mapboxgl.Map({
             container: 'map',
             style: 'mapbox://styles/mapbox/streets-v11', // Base map style
-            center: [103.8198, 1.3521], // Example: Singapore's coordinates
+            center: [103.8198, 1.3521], // Singapore coordinates
             zoom: 12
         });
 
-        map.on('load', function () {
-            // Add electoral boundary layer
-            map.addSource('electoral-boundary', {
-                type: 'geojson',
-                data: 'https://console.mapbox.com/studio/tilesets/missogo.6x03luli' // Upload and get a URL from Mapbox
-            });
+        // Function to fetch data from API
+        async function fetchGeoJSON(datasetId) {
+            const url = `https://api-open.data.gov.sg/v1/public/api/datasets/${datasetId}/poll-download`;
+            try {
+                let response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to fetch poll-download data');
+                let jsonData = await response.json();
+                if (jsonData['code'] !== 0) throw new Error(jsonData['errMsg']);
 
-            map.addLayer({
-                id: 'electoral-boundary-layer',
-                type: 'line',
-                source: 'electoral-boundary',
-                paint: {
-                    'line-color': '#ff0000',
-                    'line-width': 2
-                }
-            });
+                const fetchUrl = jsonData['data']['url'];
+                response = await fetch(fetchUrl);
+                if (!response.ok) throw new Error('Failed to fetch GeoJSON data');
+                
+                return await response.json();
+            } catch (e) {
+                console.error("Error fetching dataset:", e);
+                return null; // Return null if error occurs
+            }
+        }
 
-            // Add lamp post layer
-            map.addSource('lamp-posts', {
-                type: 'geojson',
-                data: 'https://console.mapbox.com/studio/tilesets/missogo.2v1h0qn2' // Upload and get a URL from Mapbox
-            });
+        // Load both datasets when map is ready
+        map.on('load', async function () {
+            // Fetch electoral boundary data
+            const electoralData = await fetchGeoJSON("d_4b435276c90dc16e7bc572e20384ec35");
+            if (electoralData) {
+                map.addSource('electoral-boundary', {
+                    type: 'geojson',
+                    data: electoralData
+                });
 
-            map.addLayer({
-                id: 'lamp-posts-layer',
-                type: 'circle',
-                source: 'lamp-posts',
-                paint: {
-                    'circle-radius': 4,
-                    'circle-color': '#007cbf'
-                }
-            });
+                map.addLayer({
+                    id: 'electoral-boundary-layer',
+                    type: 'line',
+                    source: 'electoral-boundary',
+                    paint: {
+                        'line-color': '#ff0000',
+                        'line-width': 2
+                    }
+                });
+            }
+
+            // Fetch lamp post data
+            const lampPostData = await fetchGeoJSON("d_4e7981c19ae3c1e3b7ce3d9842415c8d");
+            if (lampPostData) {
+                map.addSource('lamp-posts', {
+                    type: 'geojson',
+                    data: lampPostData
+                });
+
+                map.addLayer({
+                    id: 'lamp-posts-layer',
+                    type: 'circle',
+                    source: 'lamp-posts',
+                    paint: {
+                        'circle-radius': 4,
+                        'circle-color': '#007cbf'
+                    }
+                });
+            }
         });
     </script>
 </body>
