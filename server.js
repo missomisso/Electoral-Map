@@ -1,7 +1,5 @@
 const express = require("express");
 const axios = require("axios");
-const { DOMParser } = require("xmldom");
-const toGeoJSON = require("togeojson");
 const cors = require("cors");
 
 const app = express();
@@ -9,41 +7,38 @@ const PORT = 5000;
 
 app.use(cors());
 
-// Function to fetch and convert KML to GeoJSON
-async function fetchAndConvert(datasetId) {
+// Define the GeoJSON API URLs (Replace these with real URLs)
+const electoralBoundaryAPI = "https://drive.google.com/uc?export=download&id=16jhnKrkorDWHsUcdgZ5Gb1MjeK6WOpq3";
+
+// Function to fetch GeoJSON data directly
+const geojsonURL = "https://drive.google.com/uc?export=download&id=16jhnKrkorDWHsUcdgZ5Gb1MjeK6WOpq3";
+
+async function fetchGeoJSON() {
     try {
-        // Step 1: Get the actual file URL from API
-        const apiUrl = `https://api-open.data.gov.sg/v1/public/api/datasets/${datasetId}/poll-download`;
-        const response = await axios.get(apiUrl);
-        
-        if (response.data.code !== 0) throw new Error(response.data.errMsg);
-        const fetchUrl = response.data.data.url;
+        const response = await fetch(geojsonURL);
+        if (!response.ok) throw new Error("Failed to fetch GeoJSON data");
 
-        // Step 2: Download KML file
-        const fileResponse = await axios.get(fetchUrl);
-        const kmlData = fileResponse.data;
-
-        // Step 3: Convert KML to GeoJSON
-        const kmlDom = new DOMParser().parseFromString(kmlData);
-        const geojson = toGeoJSON.kml(kmlDom);
-
-        return geojson;
-    } catch (error) {
-        console.error("Error fetching or converting data:", error);
+        return await response.json();
+    } catch (e) {
+        console.error("Error fetching GeoJSON:", e);
         return null;
     }
 }
 
-// API Route to fetch and serve GeoJSON
-app.get("/fetch-data", async (req, res) => {
-    const datasetId = req.query.dataset_id;
-    if (!datasetId) return res.status(400).json({ error: "Missing dataset_id parameter" });
+map.on('load', async function () {
+    const geojsonData = await fetchGeoJSON();
+    if (geojsonData) {
+        map.addSource('geojson-layer', { type: 'geojson', data: geojsonData });
 
-    const geojsonData = await fetchAndConvert(datasetId);
-    if (!geojsonData) return res.status(500).json({ error: "Failed to fetch or convert data" });
-
-    res.json(geojsonData);
+        map.addLayer({
+            id: 'geojson-layer',
+            type: 'line',
+            source: 'geojson-layer',
+            paint: { 'line-color': '#ff0000', 'line-width': 2 }
+        });
+    }
 });
+
 
 // Start server
 app.listen(PORT, () => {
